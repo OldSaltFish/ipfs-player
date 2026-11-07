@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IPFS 播放器 · 嵌入</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #151619; --ink: #f0ece3; --ink2: #9c988e; --ink3: #605e58;
+  --accent: #d9634a; --rule: rgba(240, 236, 227, .14);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+}
+.bar { display: flex; align-items: center; gap: 12px; height: 100%; padding: 10px 14px; position: relative; }
+.cover { width: 52px; height: 52px; flex: none; border: 1px solid var(--rule); background: #0e0f11; object-fit: cover; }
+.meta { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.meta.link { cursor: pointer; }
+.title { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.artist { font-size: 11px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctrls { display: flex; align-items: center; gap: 4px; flex: none; }
+button { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; border: 0; background: none; color: var(--ink2); cursor: pointer; }
+button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+button.play { width: 34px; height: 34px; border: 1px solid var(--rule); border-radius: 50%; color: var(--ink); }
+button:disabled { opacity: .3; cursor: default; }
+.progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--rule); }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s linear; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <img class="cover" id="cover" alt="">
+  <div class="meta link" id="open" title="打开完整播放器">
+    <span class="title" id="title">加载中…</span>
+    <span class="artist" id="artist"></span>
+  </div>
+  <div class="ctrls">
+    <button id="prev" type="button" title="上一首" aria-label="上一首"><svg viewBox="0 0 24 24"><path d="M5 5v14M19 5 9 12l10 7z"/></svg></button>
+    <button id="toggle" class="play" type="button" title="播放" aria-label="播放"><svg id="ico" viewBox="0 0 24 24"><path d="M8 5 19 12 8 19z"/></svg></button>
+    <button id="next" type="button" title="下一首" aria-label="下一首"><svg viewBox="0 0 24 24"><path d="M19 5v14M5 5l10 7-10 7z"/></svg></button>
+  </div>
+  <div class="progress"><i id="bar"></i></div>
+</div>
+<audio id="audio" preload="metadata"></audio>
+<script src="config.js"></script>
+<script>
+(() => {
+  'use strict';
+  const CONF = window.PLAYER_CONFIG || {};
+  const GW = (CONF.gateways && CONF.gateways.length ? CONF.gateways : ['https://ipfs.io/ipfs/'])
+    .map((g) => (g.endsWith('/') ? g : g + '/'));
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    cover: $('cover'), title: $('title'), artist: $('artist'), open: $('open'),
+    audio: $('audio'), toggle: $('toggle'), ico: $('ico'), prev: $('prev'), next: $('next'), bar: $('bar'),
+  };
+  const q = new URLSearchParams(location.search);
+  const ICON_PLAY = '<path d="M8 5 19 12 8 19z"/>';
+  const ICON_PAUSE = '<path d="M9 5v14M15 5v14"/>';
+  let tracks = [];
+  let index = 0;
+  let gwIndex = 0;
+
+  const isUrl = (v) => /^https?:\/\//i.test(v || '');
+  const isPath = (v) => /^\//.test(v || '');
+  function oneUrl(v) {
+    if (!v) return '';
+    if (isUrl(v) || isPath(v)) return v;
+    return GW[gwIndex % GW.length] + v;
+  }
+  const resUrl = oneUrl;
+  const audioUrl = (t) => oneUrl(t.cid);
+
+  async function grabJson(cid) {
+    if (isUrl(cid) || isPath(cid)) {
+      const res = await fetch(cid, { mode: 'cors' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }
+    let last;
+    for (const gw of GW) {
+      try {
+        const res = await fetch(gw + cid, { mode: 'cors' });
+        if (res.ok) return res.json();
+        last = new Error('HTTP ' + res.status);
+      } catch (e) { last = e; }
+    }
+    throw last || new Error('所有网关不可用');
+  }
+
+  function render() {
+    const t = tracks[index];
+    if (!t) return;
+    el.title.textContent = t.titleZh ? t.title + '（' + t.titleZh + '）' : (t.title || '');
+    el.artist.textContent = t.artistZh ? t.artist + '（' + t.artistZh + '）' : (t.artist || '');
+    if (t.cover) { el.cover.src = resUrl(t.cover); el.cover.style.display = ''; }
+    else { el.cover.removeAttribute('src'); el.cover.style.display = 'none'; }
+    el.prev.disabled = tracks.length < 2;
+    el.next.disabled = tracks.length < 2;
+    const playing = !el.audio.paused;
+    el.ico.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+    el.toggle.setAttribute('aria-label', playing ? '暂停' : '播放');
+  }
+
+  function play() {
+    const t = tracks[index];
+    if (!t) return;
+    if (el.audio.src !== audioUrl(t)) el.audio.src = audioUrl(t);
+    el.audio.play().catch(() => {});
+  }
+
+  function select(i) {
+    if (!tracks.length) return;
+    index = ((i % tracks.length) + tracks.length) % tracks.length;
+    render();
+    play();
+  }
+
+  el.toggle.addEventListener('click', () => {
+    if (el.audio.paused) play();
+    else el.audio.pause();
+  });
+  el.prev.addEventListener('click', () => select(index - 1));
+  el.next.addEventListener('click', () => select(index + 1));
+  el.open.addEventListener('click', () => {
+    const p = q.get('p');
+    const url = p ? 'index.html?p=' + encodeURIComponent(p) + '&i=' + index : 'index.html';
+    window.open(url, '_blank', 'noopener');
+  });
+
+  el.audio.addEventListener('play', render);
+  el.audio.addEventListener('pause', render);
+  el.audio.addEventListener('timeupdate', () => {
+    const d = el.audio.duration;
+    el.bar.style.width = Number.isFinite(d) && d > 0 ? (el.audio.currentTime / d * 100) + '%' : '0';
+  });
+  el.audio.addEventListener('ended', () => {
+    if (tracks.length > 1) select(index + 1);
+    else el.audio.currentTime = 0;
+  });
+  el.audio.addEventListener('error', () => {
+    if (gwIndex < GW.length - 1) { gwIndex += 1; play(); }
+  });
+
+  (async () => {
+    try {
+      const p = q.get('p');
+      if (p) {
+        const data = await grabJson(p);
+        tracks = (data.tracks || []).map((t) => ({
+          cid: t.cid || t.url || t.src,
+          cover: t.coverCid || t.cover || t.coverUrl,
+          title: t.title || t.filename || '未命名曲目',
+          titleZh: t.titleZh || '',
+          artist: [t.artist, t.album].filter(Boolean).join(' / '),
+          artistZh: t.artistZh || '',
+        }));
+        index = Math.min(Math.max(0, Number(q.get('i') || 0)), Math.max(0, tracks.length - 1));
+      } else if (q.get('c')) {
+        tracks = [{
+          cid: q.get('c'),
+          cover: q.get('k') || '',
+          title: q.get('t') || '未命名曲目',
+          artist: q.get('a') || '',
+        }];
+        index = 0;
+      }
+      if (!tracks.length) { el.title.textContent = '缺少参数 p 或 c'; return; }
+      render();
+    } catch (e) {
+      el.title.textContent = '加载失败：' + e.message;
+    }
+  })();
+})();
+</script>
+</body>
+</html>

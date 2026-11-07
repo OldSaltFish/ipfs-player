@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IPFS 云端播放器</title>
+<meta property="og:title" content="IPFS 云端播放器">
+<meta property="og:description" content="从 IPFS 网关读取歌单、音频与歌词的纯静态播放器">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="masthead">
+    <div class="brand">
+      <span class="brand-mark">IPFS 云端播放器</span>
+      <span class="brand-sub" id="playlist-title"></span>
+    </div>
+    <div class="source">
+      <label for="source-input">歌单</label>
+      <input id="source-input" type="text" spellcheck="false" autocomplete="off" enterkeyhint="go" placeholder="CID 或 URL">
+      <button id="source-load" class="icon-btn" type="button" title="载入歌单" aria-label="载入歌单">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h11M11 7l5 5-5 5M20 5v14"/></svg>
+      </button>
+      <button id="copy-cid" class="icon-btn" type="button" title="复制 CID" aria-label="复制 CID">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="now-panel">
+      <div class="cover-frame">
+        <img id="cover" alt="专辑封面">
+        <div class="cover-fallback" id="cover-fallback">暂无封面</div>
+      </div>
+      <div class="now-text">
+        <p class="kicker" id="kicker">NOW PLAYING</p>
+        <h1 id="track-title">未选择曲目</h1>
+        <p id="track-artist"></p>
+        <p id="track-note"></p>
+        <p id="track-album"></p>
+        <div class="stream-row" id="stream-row"></div>
+      </div>
+    </section>
+
+    <section class="lyrics-stage">
+      <div class="lyrics" id="lyrics"></div>
+      <button id="follow" class="follow-btn" type="button" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+        恢复跟随
+      </button>
+    </section>
+  </main>
+
+  <footer class="transport">
+    <div class="progress">
+      <span id="time-now">0:00</span>
+      <input id="seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度">
+      <span id="time-total">0:00</span>
+    </div>
+    <div class="control-row">
+      <div class="volume-slot">
+        <button id="volume-btn" class="ctrl volume-btn" type="button" title="音量" aria-label="音量" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zM17 9a4 4 0 0 1 0 6"/></svg>
+          <span id="volume-value">80%</span>
+        </button>
+        <div class="volume-popup" id="volume-popup" hidden>
+          <span class="kicker">音量</span>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="音量">
+          <span id="volume-readout">80%</span>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="repeat" class="ctrl" type="button" data-mode="0" title="播放模式：顺序" aria-label="播放模式：顺序">
+          <svg class="mode-0" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h12l-3-3M19 17H7l3 3"/></svg>
+          <svg class="mode-1" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l3 3-3 3M20 6H7a4 4 0 0 0-4 4v1M7 21l-3-3 3-3M4 18h13a4 4 0 0 0 4-4v-1"/></svg>
+          <svg class="mode-2" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l3 3-3 3M20 6H7a4 4 0 0 0-4 4v1M7 21l-3-3 3-3M4 18h13a4 4 0 0 0 4-4v-1"/><circle class="dot" cx="12" cy="12" r="2"/></svg>
+        </button>
+        <button id="prev" class="ctrl" type="button" title="上一首" aria-label="上一首">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 9 12l10 7z"/></svg>
+        </button>
+        <button id="toggle" class="ctrl ctrl-main" type="button" data-state="paused" title="播放" aria-label="播放">
+          <svg class="ico-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5 19 12 8 19z"/></svg>
+          <svg class="ico-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>
+          <svg class="ico-loading" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
+        </button>
+        <button id="next" class="ctrl" type="button" title="下一首" aria-label="下一首">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7-10 7z"/></svg>
+        </button>
+        <button id="drawer-toggle" class="ctrl" type="button" title="曲目列表" aria-label="曲目列表" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        </button>
+      </div>
+      <div class="extras">
+        <button id="pip-lyrics" class="icon-btn" type="button" title="桌面歌词" aria-label="桌面歌词">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M7 10h7M7 14h4"/></svg>
+        </button>
+        <button id="download" class="icon-btn" type="button" title="下载当前曲目" aria-label="下载当前曲目" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11M7 10l5 5 5-5M4 20h16"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="download-menu" id="download-menu" hidden>
+      <button class="menu-item" type="button" data-mode="mp3">仅 MP3</button>
+      <button class="menu-item" type="button" data-mode="bundle">MP3 + 封面 + 歌词</button>
+    </div>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="曲目列表">
+  <div class="drawer-head">
+    <div class="drawer-meta">
+      <span class="kicker">曲目</span>
+      <span id="playlist-meta"></span>
+    </div>
+    <div class="drawer-actions">
+      <button id="pick-mode" class="mini-btn" type="button">选择</button>
+      <span id="pick-bar" class="pick-bar" hidden>
+        <button id="select-all" class="mini-btn" type="button">全选</button>
+        <button id="download-selected" class="mini-btn" type="button">下载所选</button>
+        <button id="pick-done" class="mini-btn" type="button">完成</button>
+      </span>
+      <button id="drawer-close" class="icon-btn" type="button" title="收起列表" aria-label="收起列表">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+  </div>
+  <ol class="track-list" id="track-list"></ol>
+</aside>
+
+<div class="bili-float" id="bili-float" hidden>
+  <div class="bili-float-head">
+    <span class="bili-float-title" id="bili-float-title"></span>
+    <button id="bili-float-jump" class="icon-btn" type="button" title="在B站打开" aria-label="在B站打开">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4 10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg>
+    </button>
+    <button id="bili-float-close" class="icon-btn" type="button" title="关闭" aria-label="关闭B站播放窗">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="bili-float-body" id="bili-float-body"></div>
+</div>
+
+<div class="status" id="status" role="status" hidden></div>
+<audio id="audio" preload="metadata"></audio>
+<script src="config.js"></script>
+<script src="zip.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
