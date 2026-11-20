@@ -101,7 +101,6 @@
     { key: 'qq', label: 'QQ音乐', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M33.235 8.5c-3.736 3.173-8.608 4.076-15.715.507l9.44 10.012c4.308 4.307 4.257 8.173 4.5 12.103c.266 4.296-1.537 6.736-4.067 7.805c-3.655 1.544-9.574-.164-11.681-3.526c-1.748-2.787-1.001-7.727 1.621-10.045c4.699-4.153 10.14-3.406 13.84 2.063"/></svg>` },
     { key: 'kugou', label: '酷狗', icon: `img:img/kugou.png` },
   ];
-  let biliEmbedBvid = '';
 
   function buildStreamUrl(key, s, mobile) {
     const kw = encodeURIComponent(s.search || '');
@@ -121,31 +120,6 @@
       case 'spotify': return 'https://open.spotify.com/search/' + kw;
       default: return '';
     }
-  }
-
-  function openBiliFloat(t) {
-    const s = t.stream && t.stream.bili;
-    if (!s || !s.id) return;
-    if (el.audio.paused === false) el.audio.pause();
-    biliEmbedBvid = s.id;
-    $('bili-float-title').textContent = displayTitle(t);
-    const body = $('bili-float-body');
-    body.replaceChildren();
-    const frame = document.createElement('iframe');
-    frame.src = 'https://player.bilibili.com/player.html?bvid=' + encodeURIComponent(s.id)
-      + '&autoplay=0&danmaku=0&high_quality=1';
-    frame.allow = 'fullscreen; autoplay; encrypted-media';
-    frame.setAttribute('allowfullscreen', '');
-    frame.setAttribute('scrolling', 'no');
-    frame.setAttribute('referrerpolicy', 'no-referrer');
-    body.append(frame);
-    $('bili-float').hidden = false;
-  }
-
-  function closeBiliFloat() {
-    $('bili-float-body').replaceChildren();
-    $('bili-float').hidden = true;
-    biliEmbedBvid = '';
   }
 
   // 已知歌曲深链的 App scheme（酷狗/酷我无公开歌曲深链不做唤端）
@@ -213,10 +187,6 @@
   function handleStreamClick(key, t) {
     const s = t.stream && t.stream[key];
     if (!s) return;
-    if (key === 'bili' && !mqTouch.matches) {
-      openBiliFloat(t);
-      return;
-    }
     const url = buildStreamUrl(key, s, mqTouch.matches);
     if (!url) return;
     if (mqTouch.matches) openMobileStream(key, s, url);
@@ -447,41 +417,100 @@
     } catch { /* file:// 下不允许改写地址，忽略 */ }
   }
 
-  // 当前曲目的在线收听按钮排（只渲染在正在播放面板，列表保持干净）
+  // 在线收听入口: 桌面=图标行; 手机=单按钮开底部弹层(图标网格)
+  function buildStreamBtn(meta, t) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'stream-btn';
+    btn.dataset.key = meta.key;
+    btn.title = meta.label;
+    btn.setAttribute('aria-label', meta.label + '在线收听');
+    if (meta.icon.startsWith('img:')) {
+      const img = document.createElement('img');
+      img.className = 'stream-img';
+      img.src = meta.icon.slice(4);
+      img.alt = '';
+      img.loading = 'lazy';
+      btn.append(img);
+    } else if (meta.icon.startsWith('<svg')) {
+      btn.innerHTML = meta.icon;
+    } else {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('class', 'line-ico');
+      svg.innerHTML = meta.icon;
+      btn.append(svg);
+    }
+    btn.addEventListener('click', () => handleStreamClick(meta.key, t));
+    return btn;
+  }
+
   function renderStreamRow(t) {
     el.streamRow.replaceChildren();
     if (!t || !t.stream || !Object.keys(t.stream).length) {
       el.streamRow.hidden = true;
       return;
     }
-    STREAM_META.forEach(({ key, label, icon }) => {
-      if (!t.stream[key]) return;
+    el.streamRow.hidden = false;
+    if (mqNarrow.matches) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'stream-btn';
-      btn.dataset.key = key;
-      btn.title = label;
-      btn.setAttribute('aria-label', label + '在线收听');
-      if (icon.startsWith('img:')) {
-        const img = document.createElement('img');
-        img.className = 'stream-img';
-        img.src = icon.slice(4);
-        img.alt = '';
-        img.loading = 'lazy';
-        btn.append(img);
-      } else if (icon.startsWith('<svg')) {
-        btn.innerHTML = icon;
-      } else {
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('viewBox', '0 0 24 24');
-        svg.setAttribute('aria-hidden', 'true');
-        svg.innerHTML = icon;
-        btn.append(svg);
-      }
-      btn.addEventListener('click', () => handleStreamClick(key, t));
+      btn.title = '在线收听';
+      btn.setAttribute('aria-label', '在线收听平台');
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('class', 'line-ico');
+      svg.innerHTML = '<path d="M4 14a8 8 0 0 1 16 0"/><rect x="3" y="13.5" width="4" height="6.5" rx="1.5"/><rect x="17" y="13.5" width="4" height="6.5" rx="1.5"/>';
+      btn.append(svg);
+      btn.addEventListener('click', () => openStreamSheet(t));
       el.streamRow.append(btn);
+    } else {
+      STREAM_META.forEach((meta) => {
+        if (!t.stream[meta.key]) return;
+        el.streamRow.append(buildStreamBtn(meta, t));
+      });
+    }
+  }
+
+  function openStreamSheet(t) {
+    const grid = document.getElementById('stream-sheet-grid');
+    grid.replaceChildren();
+    STREAM_META.forEach((meta) => {
+      if (!t.stream[meta.key]) return;
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'stream-cell';
+      cell.dataset.key = meta.key;
+      cell.title = meta.label + '在线收听';
+      const icon = buildStreamBtn(meta, t).firstChild;
+      if (icon) cell.append(icon);
+      const lab = document.createElement('span');
+      lab.textContent = meta.label;
+      cell.append(lab);
+      cell.addEventListener('click', () => {
+        closeStreamSheet();
+        handleStreamClick(meta.key, t);
+      });
+      grid.append(cell);
     });
-    el.streamRow.hidden = !el.streamRow.children.length;
+    // 锚定在触发按钮旁: 贴按钮正下方、右对齐, 手指不用挪远
+    const pop = document.getElementById('stream-sheet');
+    const anchor = el.streamRow.firstElementChild;
+    if (anchor) {
+      const r = anchor.getBoundingClientRect();
+      pop.style.top = Math.round(r.bottom + 8) + 'px';
+      pop.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+    }
+    pop.hidden = false;
+    el.scrim.hidden = false;
+  }
+
+  function closeStreamSheet() {
+    document.getElementById('stream-sheet').hidden = true;
+    if (el.drawer.hidden) el.scrim.hidden = true;
   }
 
   function selectTrack(i, autoplay) {
@@ -1240,12 +1269,60 @@
   }
   el.drawerToggle.addEventListener('click', () => setDrawer(el.drawer.hidden));
   el.drawerClose.addEventListener('click', () => setDrawer(false));
-  el.scrim.addEventListener('click', () => setDrawer(false));
-
-  $('bili-float-close').addEventListener('click', closeBiliFloat);
-  $('bili-float-jump').addEventListener('click', () => {
-    if (biliEmbedBvid) window.open('https://www.bilibili.com/video/' + biliEmbedBvid, '_blank', 'noopener');
+  el.scrim.addEventListener('click', () => {
+    if (!document.getElementById('stream-sheet').hidden) closeStreamSheet();
+    else setDrawer(false);
   });
+  function renderPlaza() {
+    const list = CONF.playlists || [];
+    const box = document.getElementById('plaza-list');
+    box.replaceChildren();
+    list.forEach((p) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'plaza-item';
+      const thumb = document.createElement('span');
+      thumb.className = 'plaza-thumb';
+      const img = document.createElement('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      setThumb(img, parseRef(p.coverCid));
+      thumb.append(img);
+      const body = document.createElement('span');
+      body.className = 'plaza-body';
+      const t = document.createElement('span');
+      t.className = 'plaza-title';
+      t.textContent = p.title;
+      const m = document.createElement('span');
+      m.className = 'plaza-meta';
+      m.textContent = p.meta || p.cid;
+      body.append(t, m);
+      row.append(thumb, body);
+      row.addEventListener('click', () => {
+        setPlaza(false);
+        openRef(p.cid);
+      });
+      box.append(row);
+    });
+  }
+  function setPlaza(open) {
+    document.getElementById('plaza-pop').hidden = !open;
+    document.getElementById('plaza-btn').setAttribute('aria-expanded', String(open));
+    if (open) renderPlaza();
+  }
+  document.getElementById('plaza-btn').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const pop = document.getElementById('plaza-pop');
+    setPlaza(pop.hidden);
+  });
+  document.addEventListener('click', (ev) => {
+    const pop = document.getElementById('plaza-pop');
+    if (pop.hidden) return;
+    if (pop.contains(ev.target) || document.getElementById('plaza-btn').contains(ev.target)) return;
+    setPlaza(false);
+  });
+  document.getElementById('stream-sheet-close').addEventListener('click', closeStreamSheet);
+
   ['pointerdown', 'touchstart'].forEach((evt) => el.trackList.addEventListener(evt, () => {
     state.listTouchedUntil = Date.now() + 1500;
   }, { passive: true }));
@@ -1270,7 +1347,7 @@
   document.addEventListener('keydown', (ev) => {
     const tag = (ev.target && ev.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea') return;
-    if (ev.key === 'Escape') { setDrawer(false); setVolumePopup(false); setDownloadMenu(false); closeBiliFloat(); return; }
+    if (ev.key === 'Escape') { setPlaza(false); closeStreamSheet(); setDrawer(false); setVolumePopup(false); setDownloadMenu(false); return; }
     if (ev.code === 'Space') { ev.preventDefault(); el.toggle.click(); }
     else if (ev.key === 'ArrowLeft') { ev.preventDefault(); setFollow(); seekTo(el.audio.currentTime - 5); }
     else if (ev.key === 'ArrowRight') { ev.preventDefault(); setFollow(); seekTo(el.audio.currentTime + 5); }
@@ -1281,6 +1358,70 @@
 
   el.audio.volume = Number(el.volume.value);
   renderVolume(Number(el.volume.value));
+  // 单曲卡片模式 (?card=1&i=序号): 网易云外链式小卡片, 供文章穿插排版
+  const CARD = new URLSearchParams(location.search).has('card');
+  if (CARD) {
+    document.body.classList.add('card');
+    const card = document.createElement('div');
+    card.className = 'mini-card';
+    card.innerHTML = '<img class="mini-cover" alt="">' +
+      '<div class="mini-mid"><div class="mini-title"></div><div class="mini-artist"></div>' +
+      '<input class="mini-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度"></div>' +
+      '<div class="mini-btns">' +
+      '<button class="mini-sbtn" type="button" data-act="full" title="打开完整播放器" aria-label="打开完整播放器">' +
+      '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4 10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button>' +
+      '</div>' +
+      '<button class="mini-toggle" type="button" title="播放" aria-label="播放">' +
+      '<svg viewBox="0 0 24 24" class="ico-play"><path d="M8 5 19 12 8 19z"/></svg>' +
+      '<svg viewBox="0 0 24 24" class="ico-pause"><path d="M9 5v14M15 5v14"/></svg></button>';
+    document.body.append(card);
+
+    let miniSeeking = false;
+    const seekEl = card.querySelector('.mini-seek');
+    seekEl.addEventListener('input', () => {
+      miniSeeking = true;
+      seekEl.style.setProperty('--p', (Number(seekEl.value) / 10) + '%');
+    });
+    seekEl.addEventListener('change', () => {
+      const d = el.audio.duration;
+      if (Number.isFinite(d) && d > 0) { setFollow(); seekTo(Number(seekEl.value) / 1000 * d); }
+      miniSeeking = false;
+    });
+
+    card.querySelector('.mini-toggle').addEventListener('click', () => el.toggle.click());
+    card.querySelector('[data-act="full"]').addEventListener('click', () => {
+      const u = new URL(location.href);
+      u.searchParams.delete('card');
+      u.searchParams.set('i', String(state.index));
+      window.open(u.href, '_blank', 'noopener');
+    });
+
+    const syncMini = () => {
+      const t = state.audioTrack;
+      if (!t) return;
+      const tt = card.querySelector('.mini-title');
+      const ta = card.querySelector('.mini-artist');
+      const cov = card.querySelector('.mini-cover');
+      const tg = card.querySelector('.mini-toggle');
+      const title = (t.titleZh ? t.title + '（' + t.titleZh + '）' : t.title) || '加载中…';
+      if (tt.textContent !== title) {
+        tt.textContent = title;
+        ta.textContent = [t.artist, t.album].filter(Boolean).join(' / ');
+        if (state.coverUrl) cov.src = state.coverUrl;
+      }
+      if (!miniSeeking) {
+        const d = el.audio.duration;
+        const pct = Number.isFinite(d) && d > 0 ? el.audio.currentTime / d * 100 : 0;
+        seekEl.value = String(Math.round(pct * 10));
+        seekEl.style.setProperty('--p', pct + '%');
+      }
+      tg.classList.toggle('playing', !el.audio.paused && !el.audio.ended);
+    };
+    el.audio.addEventListener('timeupdate', syncMini);
+    el.audio.addEventListener('play', syncMini);
+    el.audio.addEventListener('pause', syncMini);
+    el.audio.addEventListener('loadedmetadata', syncMini);
+  }
   const initial = new URLSearchParams(location.search).get('p') || DEFAULT_REF;
   el.sourceInput.value = initial;
   if (initial) loadPlaylist(parseRef(initial));
