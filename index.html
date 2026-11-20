@@ -9,7 +9,7 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20261107c">
 </head>
 <body>
 <div class="app">
@@ -23,6 +23,9 @@
       <input id="source-input" type="text" spellcheck="false" autocomplete="off" enterkeyhint="go" placeholder="CID 或 URL">
       <button id="source-load" class="icon-btn" type="button" title="载入歌单" aria-label="载入歌单">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h11M11 7l5 5-5 5M20 5v14"/></svg>
+      </button>
+      <button id="plaza-btn" class="icon-btn" type="button" title="歌单广场" aria-label="歌单广场" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg>
       </button>
       <button id="copy-cid" class="icon-btn" type="button" title="复制 CID" aria-label="复制 CID">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M15 9V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h4"/></svg>
@@ -132,23 +135,25 @@
   <ol class="track-list" id="track-list"></ol>
 </aside>
 
-<div class="bili-float" id="bili-float" hidden>
-  <div class="bili-float-head">
-    <span class="bili-float-title" id="bili-float-title"></span>
-    <button id="bili-float-jump" class="icon-btn" type="button" title="在B站打开" aria-label="在B站打开">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4 10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg>
-    </button>
-    <button id="bili-float-close" class="icon-btn" type="button" title="关闭" aria-label="关闭B站播放窗">
+<aside class="stream-sheet" id="stream-sheet" hidden aria-label="在线收听平台">
+  <div class="stream-sheet-head">
+    <span class="stream-sheet-title">在线收听</span>
+    <button id="stream-sheet-close" class="icon-btn" type="button" title="收起" aria-label="收起在线收听面板">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
   </div>
-  <div class="bili-float-body" id="bili-float-body"></div>
+  <div class="stream-sheet-grid" id="stream-sheet-grid"></div>
+</aside>
+
+<div class="plaza-pop" id="plaza-pop" hidden>
+  <div class="plaza-head"><span class="kicker">歌单广场</span></div>
+  <div id="plaza-list"></div>
 </div>
 
 <div class="status" id="status" role="status" hidden></div>
 <audio id="audio" preload="metadata"></audio>
-<script src="config.js"></script>
+<script src="config.js?v=20261107c"></script>
 <script src="zip.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=20261107c"></script>
 </body>
 </html>
